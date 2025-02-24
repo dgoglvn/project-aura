@@ -1,0 +1,7 @@
+# ignore virtual environment
+caldito/
+
+# ignore model checkpoints and results (too large for GitHub)
+results/
+results_OLD/
+trained_model/
