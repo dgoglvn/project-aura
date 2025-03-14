@@ -6,6 +6,7 @@ from transformers import (
 )
 import torch
 from typing import Tuple, Optional, List, Dict, Any
+import pyfiglet
 
 
 def load_gemma_model() -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
@@ -90,6 +91,7 @@ def run_chatbot() -> Any:
     Returns:
         Any: nothing
     """
+    print(pyfiglet.figlet_format("project aura", font="larry3d", width=240))
     print("loading gemma 3 model. this may take a moment...")
     model, tokenizer = load_gemma_model()
     if model is None or tokenizer is None:
