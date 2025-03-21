@@ -31,7 +31,12 @@ model = genai.GenerativeModel(
 chat_session = model.start_chat(history=[])
 
 
-def capture_audio() -> Any:
+def recognize_speech_from_mic() -> Any:
+    """transcribe speech recorded from microphone
+
+    Returns:
+        Any: audio from the user
+    """
     r = sr.Recognizer()
     mic = sr.Microphone()
     input("Press Enter when you're ready to start speaking...")
@@ -54,6 +59,14 @@ def capture_audio() -> Any:
 
 
 def generate_response(user_input: Any) -> str:
+    """use google's GEMINI to generate a response based on input from the user
+
+    Args:
+        user_input (Any): audio from the user's mic
+
+    Returns:
+        str: the model's response in markdown format
+    """
     response = chat_session.send_message(user_input)
     wrapped_text: str = textwrap.fill(response.text)
 
@@ -71,7 +84,7 @@ def run_chatbot() -> Any:
     print(pyfiglet.figlet_format("project aura", font="larry3d", width=240))
 
     while True:
-        user_input = capture_audio()
+        user_input = recognize_speech_from_mic()
 
         if user_input.lower() == "exit":
             print("GEMMA: Goodbye 👋")
