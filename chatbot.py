@@ -1,86 +1,63 @@
-from transformers import (
-    AutoTokenizer,
-    AutoModelForCausalLM,
-    PreTrainedModel,
-    PreTrainedTokenizer,
-)
-import torch
-from typing import Tuple, Optional, List, Dict, Any
+import os
+import google.generativeai as genai
+from dotenv import load_dotenv
+
+from typing import Any
+import speech_recognition as sr
 import pyfiglet
+import textwrap
+from rich.console import Console
+from rich.markdown import Markdown
+
+load_dotenv()
+
+console = Console()
+
+genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+
+# create the model
+generation_config = {
+    "temperature": 1,
+    "top_p": 0.95,
+    "top_k": 40,
+    "max_output_tokens": 8192,
+    "response_mime_type": "text/plain",
+}
+
+model = genai.GenerativeModel(
+    model_name="gemini-1.5-flash-8b", generation_config=generation_config
+)
+
+chat_session = model.start_chat(history=[])
 
 
-def load_gemma_model() -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
-    """loads the pretrained model and the matching tokenizer from huggingface.co
+def capture_audio() -> Any:
+    r = sr.Recognizer()
+    mic = sr.Microphone()
+    input("Press Enter when you're ready to start speaking...")
 
-    Returns:
-        Tuple[PreTrainedModel, PreTrainedTokenizer]: the loaded model and tokenizer
-    """
-    model_name: str = "google/gemma-3-1b-it"
+    with mic as source:
+        print("Recording...")
+        r.adjust_for_ambient_noise(source)
+        audio = r.listen(source)
+
+    print("Recording stopped. Processing audio...")
+    user_input = r.recognize_google(audio)
 
     try:
-        # load tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        # load model (if you have limited GPU memory, consider adding `device_map="auto"`,
-        # or use half precision for efficiency -> `torch_dtype=torch.float16`)
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name, torch_dtype=torch.float16
-        )
-        return model, tokenizer
-    except Exception as e:
-        print(f"an error occurred while trying to load {model_name}: {e}")
-        return None, None
+        print(f">>User: {user_input}")
+        return user_input
+    except sr.UnknownValueError:
+        print("Could not understand your audio")
+    except sr.RequestError as e:
+        print(f"API was unreachable or unresponsive; {e}")
 
 
-def generate_response(
-    model: PreTrainedModel,
-    tokenizer: PreTrainedTokenizer,
-    user_input: str,
-) -> str:
-    """utilizes gemma 3 model to generate responses bases on the user's input
+def generate_response(user_input: Any) -> str:
+    response = chat_session.send_message(user_input)
+    wrapped_text: str = textwrap.fill(response.text)
 
-    Args:
-        model (PreTrainedModel): the gemma language model
-        tokenizer (PreTrainedTokenizer): the tokenizer for the model
-        user_input (str): input from the user
-        chat_history (Optional[List[Dict[str, str]]], optional): previous conversation turns as a list of dictionaries. Defaults to None.
-
-    Returns:
-        str: gemma 3 model's response
-    """
-    formatted_prompt: str = ""
-    formatted_prompt += f"USER: {user_input}\nASSISTANT: "  # <- the model will generate prediction on its turn
-
-    # tokenize the formatted text
-    inputs = tokenizer(
-        formatted_prompt,
-        return_tensors="pt",
-        truncation=True,
-        padding=True,
-        max_length=512,
-    )
-
-    attention_mask = inputs["attention_mask"]
-
-    # store the input length to identify where the model's output begins
-    input_length = inputs.input_ids.shape[1]
-
-    # generate the response
-    outputs = model.generate(
-        inputs["input_ids"],
-        max_new_tokens=512,
-        temperature=0.7,
-        top_p=0.9,
-        do_sample=True,
-        attention_mask=attention_mask,
-        pad_token_id=tokenizer.eos_token_id,
-    )
-
-    # decode the model's response
-    response: str = tokenizer.decode(
-        outputs[0][input_length:], skip_special_tokens=True
-    )
-
-    return response
+    return Markdown(wrapped_text)
 
 
 def run_chatbot() -> Any:
@@ -92,25 +69,16 @@ def run_chatbot() -> Any:
         Any: nothing
     """
     print(pyfiglet.figlet_format("project aura", font="larry3d", width=240))
-    print("loading gemma 3 model. this may take a moment...")
-    model, tokenizer = load_gemma_model()
-    if model is None or tokenizer is None:
-        print("exiting due to model loading failure")
-        return
-    print(
-        "gemma 3 model was successfully loaded! type 'exit' to leave the conversation."
-    )
-
-    # chat_history: List[Dict[str, str]] = []
 
     while True:
-        user_input = input(">>User: ")
+        user_input = capture_audio()
+
         if user_input.lower() == "exit":
-            print("Goodbye 👋")
+            print("GEMMA: Goodbye 👋")
             break
 
-        response: str = generate_response(model, tokenizer, user_input)
-        print(f"GEMMA: {response}")
+        print(f"GEMINI: ", end="")
+        console.print(generate_response(user_input))
 
 
 if __name__ == "__main__":
